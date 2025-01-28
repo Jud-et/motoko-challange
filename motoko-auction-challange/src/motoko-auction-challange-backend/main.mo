@@ -1,5 +1,6 @@
 import List "mo:base/List";
 import Principal "mo:base/Principal";
+import Timer "mo:base/Timer";
 
 // Define the types for Auction system
 
@@ -22,6 +23,8 @@ type Auction = {
   item : Item;
   var bidHistory : List.List<Bid>;
   var remainingTime : Nat;
+  var isClosed : Bool;  // To track if the auction is closed
+  var winningBid : ?Bid;  // Optional field to store the winning bid
 };
 
 // Stable variables to persist data across upgrades
@@ -39,10 +42,17 @@ public func newAuction(item : Item, duration : Nat) : async AuctionId {
     item = item;
     var bidHistory = List.nil<Bid>();  // Empty bid history initially
     var remainingTime = duration;  // Auction duration
+    var isClosed = false;  // Initially not closed
+    var winningBid = null;  // No winning bid yet
   };
 
   // Store the auction in the stable variable
   auctions := List.push(newAuction, auctions);
+
+  // Start a periodic timer to check auction status every 10 seconds
+  ignore Timer.setTimer(#seconds(10), func () : <system> async () {
+    await checkAndCloseAuctions();
+  });
 
   return auctionId;  // Return the new auction ID
 };
@@ -63,10 +73,42 @@ public query func getAuctionDetails(auctionId : AuctionId) : async ?Auction {
 
 // Function to retrieve all active auctions (those with remainingTime > 0)
 public query func getActiveAuctions() : async [Auction] {
-  // Filter auctions to include only those that are still active (remainingTime > 0)
   let activeAuctions = List.filter(auctions, func (auction) : Bool {
-    auction.remainingTime > 0;  // Only include active auctions
+    auction.remainingTime > 0 && !auction.isClosed;  // Only active auctions
   });
 
-  return List.toArray(activeAuctions);  // Convert to array for easier handling in the frontend
+  return List.toArray(activeAuctions);  // Convert to array for easier handling in frontend
+};
+
+// Periodic function to check and close auctions when their time expires
+func checkAndCloseAuctions() : async () {
+  // Iterate through each auction to check if it should be closed
+  for (auction in auctions) {
+    if (auction.remainingTime == 0 && !auction.isClosed) {
+      // Determine the winning bid
+      let highestBidOption = List.headOption(auction.bidHistory);
+      switch (highestBidOption) {
+        case null {
+          auction.winningBid := null;  // No bids, auction failed
+        };
+        case (?bid) {
+          auction.winningBid := ?bid;  // Set the highest bid as the winning bid
+        };
+      }
+
+      // Mark the auction as closed
+      auction.isClosed := true;
+
+      // Optionally, you can log or perform other actions for the auction closing:
+      Debug.print("Auction " # Nat.toText(auction.id) # " has closed. Winning bid: " # debug_show(auction.winningBid));
+    } else if (auction.remainingTime > 0) {
+      // Decrease the remaining time for active auctions
+      auction.remainingTime := auction.remainingTime - 10;  // Decrease by 10 seconds
+    }
+  }
+
+  // After checking all auctions, restart the timer to check again after 10 seconds
+  ignore Timer.setTimer(#seconds(10), func () : <system> async () {
+    await checkAndCloseAuctions();
+  });
 };
