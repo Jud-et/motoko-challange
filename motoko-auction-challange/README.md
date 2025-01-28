@@ -126,7 +126,6 @@ Found a bug? Want to add meme functionality?
 Now go forth and auction like the blockchain warrior you are! 🛡️⚔️  
 
 *(Disclaimer: No actual auction hammers were harmed in making this DApp)*  
-```
 
----
+
 
