@@ -1,60 +1,62 @@
 import List "mo:base/List";
-import Debug "mo:base/Debug";
+import Principal "mo:base/Principal";
 
-actor {
-  type Item = {
-    title : Text;
-    description : Text;
-    image : Blob;
+// Define the types for Auction system
+
+type Item = {
+  title : Text;
+  description : Text;
+  image : Blob;
+};
+
+type Bid = {
+  price : Nat;
+  time : Nat;
+  originator : Principal;
+};
+
+type AuctionId = Nat;
+
+type Auction = {
+  id : AuctionId;
+  item : Item;
+  var bidHistory : List.List<Bid>;
+  var remainingTime : Nat;
+};
+
+// Stable variables to persist data across upgrades
+stable var auctions = List.nil<Auction>(); // List of all auctions
+stable var idCounter = 0;  // Counter to generate unique Auction IDs
+
+// Function to create a new auction and store it
+public func newAuction(item : Item, duration : Nat) : async AuctionId {
+  let auctionId = idCounter;
+  idCounter += 1;  // Increment the auction ID counter
+  
+  // Create a new auction
+  let newAuction : Auction = {
+    id = auctionId;
+    item = item;
+    var bidHistory = List.nil<Bid>();  // Empty bid history initially
+    var remainingTime = duration;  // Auction duration
   };
 
-  type Bid = {
-    price : Nat;
-    time : Nat;
-    originator : Principal;
-  };
+  // Store the auction in the stable variable
+  auctions := List.push(newAuction, auctions);
 
-  type AuctionId = Nat;
+  return auctionId;  // Return the new auction ID
+};
 
-  type Auction = {
-    id : AuctionId;
-    item : Item;
-    var bidHistory : List.List<Bid>;
-    var remainingTime : Nat;
-  };
-
-  type AuctionDetails = {
-    item : Item;
-    bidHistory : [Bid];
-    remainingTime : Nat;
-  };
-
-  func findAuction(auctionId : AuctionId) : Auction {
-  let result = List.find<Auction>(auctions, func auction = auction.id == auctionId);
-    switch (result) {
-      case null Debug.trap("Inexistent id");
-      case (?auction) auction;
+// Function to retrieve the details of an auction by its ID
+public query func getAuctionDetails(auctionId : AuctionId) : async ?Auction {
+  let result = List.find<Auction>(auctions, func (auction) = auction.id == auctionId);
+  
+  switch (result) {
+    case null {
+      return null;  // Auction not found
     };
-  };
-
-  stable var auctions = List.nil<Auction>();
-  stable var idCounter = 0;
-
-  public func newAuction(item : Item, duration : Nat) : async () {
-    // Implementation here
-  };
-
-  public query func getAuctionDetails(auctionId : AuctionId) : async AuctionDetails {
-    let auction = findAuction(auctionId);
-    let bidHistory = List.toArray(List.reverse(auction.bidHistory));
-    { 
-      item = auction.item; 
-      bidHistory; 
-      remainingTime = auction.remainingTime 
-    }
-  };
-
-  public shared (message) func makeBid(auctionId : AuctionId, price : Nat) : async () {
-    // Implementation here
-  };
-}
+    case (?auction) {
+      return ?auction;  // Return the auction details
+    };
+  }
+};
