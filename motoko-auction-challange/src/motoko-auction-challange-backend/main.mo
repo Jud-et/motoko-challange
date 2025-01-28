@@ -60,3 +60,13 @@ public query func getAuctionDetails(auctionId : AuctionId) : async ?Auction {
     };
   }
 };
+
+// Function to retrieve all active auctions (those with remainingTime > 0)
+public query func getActiveAuctions() : async [Auction] {
+  // Filter auctions to include only those that are still active (remainingTime > 0)
+  let activeAuctions = List.filter(auctions, func (auction) : Bool {
+    auction.remainingTime > 0;  // Only include active auctions
+  });
+
+  return List.toArray(activeAuctions);  // Convert to array for easier handling in the frontend
+};
