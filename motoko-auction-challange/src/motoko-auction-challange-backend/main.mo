@@ -25,6 +25,8 @@ type Auction = {
   var remainingTime : Nat;
   var isClosed : Bool;  // To track if the auction is closed
   var winningBid : ?Bid;  // Optional field to store the winning bid
+  var reservePrice : Nat;  // Reserve price set by the auction creator
+  var isSold : Bool;  // To track if the item is sold or not
 };
 
 // Stable variables to persist data across upgrades
@@ -32,11 +34,11 @@ stable var auctions = List.nil<Auction>(); // List of all auctions
 stable var idCounter = 0;  // Counter to generate unique Auction IDs
 
 // Function to create a new auction and store it
-public func newAuction(item : Item, duration : Nat) : async AuctionId {
+public func newAuction(item : Item, duration : Nat, reservePrice : Nat) : async AuctionId {
   let auctionId = idCounter;
   idCounter += 1;  // Increment the auction ID counter
   
-  // Create a new auction
+  // Create a new auction with a reserve price
   let newAuction : Auction = {
     id = auctionId;
     item = item;
@@ -44,6 +46,8 @@ public func newAuction(item : Item, duration : Nat) : async AuctionId {
     var remainingTime = duration;  // Auction duration
     var isClosed = false;  // Initially not closed
     var winningBid = null;  // No winning bid yet
+    var reservePrice = reservePrice;  // Set the reserve price
+    var isSold = false;  // Initially not sold
   };
 
   // Store the auction in the stable variable
@@ -96,11 +100,18 @@ func checkAndCloseAuctions() : async () {
         };
       }
 
+      // Check if the winning bid meets the reserve price
+      if (auction.winningBid == null || auction.winningBid.price < auction.reservePrice) {
+        auction.isSold := false;  // Item is not sold if the bid is lower than the reserve price
+      } else {
+        auction.isSold := true;  // Item is sold if the bid meets or exceeds the reserve price
+      }
+
       // Mark the auction as closed
       auction.isClosed := true;
 
       // Optionally, you can log or perform other actions for the auction closing:
-      Debug.print("Auction " # Nat.toText(auction.id) # " has closed. Winning bid: " # debug_show(auction.winningBid));
+      Debug.print("Auction " # Nat.toText(auction.id) # " has closed. Winning bid: " # debug_show(auction.winningBid) # " Sold: " # Bool.toText(auction.isSold));
     } else if (auction.remainingTime > 0) {
       // Decrease the remaining time for active auctions
       auction.remainingTime := auction.remainingTime - 10;  // Decrease by 10 seconds
